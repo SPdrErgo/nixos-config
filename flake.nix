@@ -125,8 +125,19 @@
         }:$PATH"
         set -euo pipefail
 
+        # Source tree of this flake in the Nix store (the installer used to
+        # forget this line and died later with "SRC: unbound variable").
+        SRC=${self}
+
         if [ "$(id -u)" -ne 0 ]; then
           echo "Run as root: sudo nix --extra-experimental-features 'nix-command flakes' run github:SPdrErgo/nixos-config#install-iso -- /dev/vda" >&2
+          exit 1
+        fi
+
+        # configuration.nix uses systemd-boot, which only works when the ISO
+        # was booted in UEFI mode. Fail before the disk is wiped.
+        if [ ! -d /sys/firmware/efi ]; then
+          echo "Refusing: this ISO was booted in legacy BIOS mode, but the config uses systemd-boot (UEFI)." >&2
           exit 1
         fi
 
@@ -195,6 +206,10 @@
         mount "$P1" /mnt/boot
 
         /run/current-system/sw/bin/nixos-generate-config --root /mnt
+        if [ ! -f "$SRC/flake.nix" ]; then
+          echo "Internal error: flake source not found at '$SRC'." >&2
+          exit 1
+        fi
         cp -a "$SRC/." /mnt/etc/nixos/
         printf '{ username = "%s"; }\n' "$USER_NAME" > /mnt/etc/nixos/user.nix
 
