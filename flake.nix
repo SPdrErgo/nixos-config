@@ -94,11 +94,105 @@
 
         echo "Done. Config installed to /etc/nixos."
       '';
+
+      # Full install from the minimal ISO. Wipes the target disk:
+      #   sudo nix --extra-experimental-features 'nix-command flakes' \
+      #     run github:SPdrErgo/nixos-config#install-iso -- /dev/vda
+      isoInstaller = pkgs.writeShellScriptBin "nixos-install-iso" ''
+        export PATH="${
+          pkgs.lib.makeBinPath [
+            pkgs.coreutils
+            pkgs.util-linux
+            pkgs.parted
+            pkgs.btrfs-progs
+            pkgs.dosfstools
+          ]
+        }:$PATH"
+        set -euo pipefail
+
+        if [ "$(id -u)" -ne 0 ]; then
+          echo "Run as root: sudo nix --extra-experimental-features 'nix-command flakes' run github:SPdrErgo/nixos-config#install-iso -- /dev/vda" >&2
+          exit 1
+        fi
+
+        DISK=""
+        if [ "$#" -ge 1 ]; then
+          DISK="$1"
+        fi
+        if [ -z "$DISK" ]; then
+          echo "Usage: ... -- /dev/vda   (whole disk, will be erased)" >&2
+          exit 1
+        fi
+        if [ ! -b "$DISK" ]; then
+          echo "Not a block device: $DISK" >&2
+          exit 1
+        fi
+
+        case "$DISK" in
+          *[0-9]) P1="$DISK"p1; P2="$DISK"p2 ;;
+          *) P1="$DISK"1; P2="$DISK"2 ;;
+        esac
+
+        if lsblk -no MOUNTPOINTS "$DISK" 2>/dev/null | grep -q '[^[:space:]]'; then
+          echo "Refusing: something from $DISK is mounted (live medium?)." >&2
+          exit 1
+        fi
+
+        echo "This will ERASE $DISK ($P1 + $P2) and install NixOS."
+        read -r -p "Type YES to continue: " ans
+        if [ "$ans" != YES ]; then
+          echo "aborted"
+          exit 1
+        fi
+
+        umount -R /mnt 2>/dev/null || true
+        wipefs -a "$DISK" >/dev/null
+        parted -s "$DISK" mklabel gpt
+        parted -s "$DISK" mkpart ESP fat32 1MiB 513MiB
+        parted -s "$DISK" set 1 esp on
+        parted -s "$DISK" mkpart root btrfs 513MiB 100%
+        udevadm settle
+
+        mkfs.fat -F 32 -n NIXBOOT "$P1"
+        mkfs.btrfs -f -L nixos "$P2"
+
+        mount "$P2" /mnt
+        btrfs subvolume create /mnt/@
+        btrfs subvolume create /mnt/@home
+        btrfs subvolume create /mnt/@nix
+        umount /mnt
+
+        opts="compress=zstd,noatime"
+        mount -o "$opts,subvol=@" "$P2" /mnt
+        mkdir -p /mnt/home /mnt/nix /mnt/boot
+        mount -o "$opts,subvol=@home" "$P2" /mnt/home
+        mount -o "$opts,subvol=@nix" "$P2" /mnt/nix
+        mount "$P1" /mnt/boot
+
+        /run/current-system/sw/bin/nixos-generate-config --root /mnt
+        cp -a "$SRC/." /mnt/etc/nixos/
+
+        export NIX_CONFIG="experimental-features = nix-command flakes"
+        /run/current-system/sw/bin/nixos-install --flake /mnt/etc/nixos#nixos \
+          --option extra-substituters "https://mirror.yandex.ru/nixos https://niri.cachix.org https://noctalia.cachix.org" \
+          --option extra-trusted-public-keys "niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= noctalia.cachix.org-1:pCOR47nnMEo5thcxNDtzWpOxNFQsBRglJzxWPp3dkU4="
+
+        /run/current-system/sw/bin/nixos-enter --root /mnt -c 'passwd spdr_v0x8r' || true
+
+        umount -R /mnt
+        echo "Installed. Remove the ISO and reboot."
+      '';
     in
     {
-      apps.${system}.install = {
-        type = "app";
-        program = "${installer}/bin/nixos-config-install";
+      apps.${system} = {
+        install = {
+          type = "app";
+          program = "${installer}/bin/nixos-config-install";
+        };
+        "install-iso" = {
+          type = "app";
+          program = "${isoInstaller}/bin/nixos-install-iso";
+        };
       };
 
       # `nix fmt` / `nix fmt .` formats *.nix in this directory with nixfmt.

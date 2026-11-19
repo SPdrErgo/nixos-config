@@ -35,7 +35,27 @@ sudo nix --extra-experimental-features 'nix-command flakes' \
 
 > Нужен **публичный** репозиторий. Если он приватный — авторизуйтесь (`gh auth login` или PAT), либо клонируйте вручную и выполните `sudo nixos-rebuild switch --flake /etc/nixos#nixos`.
 
-## Установка с нуля (с ISO)
+## Minimal ISO: установка одной командой
+
+С флешки **NixOS minimal ISO 26.05**. Поднимите сеть (обычно DHCP сам; иначе `nmtui`).
+
+```bash
+sudo nix --extra-experimental-features 'nix-command flakes' \
+  run github:SPdrErgo/nixos-config#install-iso -- /dev/vda
+```
+
+Что делает:
+
+- затирает **весь диск** (укажите свой: `/dev/sda`, `/dev/nvme0n1`, ...);
+- GPT: ESP 512 MiB + btrfs с subvolumes `@`, `@home`, `@nix`;
+- `nixos-generate-config` + `nixos-install` с вашим flake;
+- спрашивает `YES`, затем root-пароль и пароль `spdr_v0x8r`.
+
+После установки: `reboot`, вынуть флешку. Требуется публичный репозиторий.
+
+> Диск будет полностью стёрт. Скрипт откажется работать, если с этого диска что-то смонтировано (защита от затирания live-флешки).
+
+## Установка с нуля (вручную, с ISO)
 
 1. Загрузиться с NixOS ISO **26.05**, подключить сеть.
 2. Разметить диск и смонтировать в `/mnt` (например btrfs subvolumes `@`, `home`, `nix` + EFI в `/boot`).
