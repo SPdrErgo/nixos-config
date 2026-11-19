@@ -385,6 +385,7 @@
         # `path:` keeps the gitignored hardware-configuration.nix in the build.
         /run/current-system/sw/bin/nixos-install --flake "path:/mnt/etc/nixos#nixos" \
           --no-root-password \
+          --no-channel-copy \
           --option substituters "$SUBS" \
           --option trusted-public-keys "${cacheKeys}" \
           --option connect-timeout 15 \

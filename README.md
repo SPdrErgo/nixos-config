@@ -16,6 +16,8 @@ Catppuccin/starship, yazi/Thunar, udiskie. Десктопных окружени
 | `hardware-configuration.nix` | **не хранится в репозитории** — генерируется на каждой машине (`nixos-generate-config`) |
 | `user-local.nix` | **не хранится в репозитории** — машино-специфичное имя пользователя |
 | `themes.nix` | палитры тем (catppuccin mocha/latte, everforest, gruvbox, ascii) |
+| `modules/home-manager/shared/wallpapers/` | обои, которые линкуются в `~/.config/wallpapers` |
+| `modules/home-manager/features/desktop/noctalia.nix` | noctalia: обои, тема из обоев, бар/лаунчер |
 | `theme-local.nix` | **не хранится в репозитории** — выбранная тема (пишется `theme <name>`) |
 | `starship-catppuccin-powerline.toml` | пресет Starship |
 | `scripts/install`-скрипты | `rebuild.sh` (пересборка), `nix-caches.sh` (выбор живого кеша), `adopt-git.sh` (перевести уже установленную систему на git), `cached-build.sh` |
@@ -142,25 +144,26 @@ services.openssh = {
 | `Super+E` | файловый менеджер (`yazi`) |
 | `Super+Shift+B` | панель выбора обоев noctalia |
 | `Super+Shift+W` | случайные обои (`noctalia msg wallpaper-random`) |
+| `Super+Shift+T` | тёмная/светлая тема noctalia |
 | `Super+X` | панель noctalia |
-| `Ctrl+Alt+L` | заблокировать (`swaylock`) |
+| `Ctrl+Alt+L` | заблокировать (`noctalia msg session lock`) |
 
 ## Обои (noctalia)
 
-Обоями полностью управляет noctalia: свой рендерер, переходы (fade/wipe/pixel/crt…),
-панель выбора и IPC. `swaybg` больше не используется.
+Обои **лежат в репозитории** (`modules/home-manager/shared/wallpapers`) и при сборке линкуются в
+`~/.config/wallpapers` — ничего не скачивается, установка/пересборка остаются быстрыми.
 
-- папка по умолчанию — `~/Pictures` (в конфиге `wallpaper.directory = ""` = XDG Pictures);
-- выбор обоев: `Super+Shift+B` (панель) или `noctalia msg panel-toggle wallpaper`;
-- случайные: `Super+Shift+W` (`noctalia msg wallpaper-random`);
-- вперёд/назад: `noctalia msg wallpaper-next`, `noctalia msg wallpaper-previous`;
-- поставить конкретный файл: `noctalia msg wallpaper-set ~/Pictures/foo.png`.
+Noctalia при старте сразу ставит дефолтные обои (`everforest_robin.png`), дальше:
 
-Свою папку можно указать явно:
+- `Super+Shift+B` — панель выбора обоев;
+- `Super+Shift+W` — случайные (`noctalia msg wallpaper-random`);
+- `Super+Shift+T` — переключить тёмную/светлую тему;
+- автоматическая смена обоев каждые 2 минуты (`wallpaper.automation`);
+- палитра самого noctalia строится **из текущих обоев** (`theme.source = "wallpaper"`),
+  поэтому смена обоев автоматически меняет цвета бара/панелей/лаунчера.
 
-```nix
-programs.noctalia.settings.wallpaper.directory = "/home/<user>/Wallpapers";
-```
+Поменять/добавить обои: положи файл в `modules/home-manager/shared/wallpapers/` и укажи его в
+`modules/home-manager/features/desktop/noctalia.nix` как `wallpaper.default.path`.
 
 ## Экран входа (ly)
 
@@ -256,11 +259,11 @@ bash scripts/cached-build.sh
 
 - alacritty (фон/ANSI/курсор/выделение);
 - рамки niri;
-- палитра **noctalia** (бар, панели, лаунчер) — генерируется JSON
-  `~/.config/noctalia/palettes/Config.json` через `customPalettes.Config`;
 - экран входа `ly` (цвета + анимация).
 
-Выбранная тема хранится в `theme-local.nix` (gitignore), по умолчанию — `catppuccin-mocha`.
+Noctalia использует свою схему: `theme.source = "wallpaper"`, то есть палитра бара/панелей/
+лаунчера строится из текущих обоев и меняется вместе с ними. Выбранная локальная тема хранится
+в `theme-local.nix` (gitignore), по умолчанию — `catppuccin-mocha`.
 
 ```bash
 theme                  # текущая тема + список доступных

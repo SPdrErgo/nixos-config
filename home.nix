@@ -5,7 +5,6 @@
   pkgs,
   username,
   theme,
-  themeName,
   ...
 }:
 
@@ -27,62 +26,14 @@ let
   spawnShellWith =
     key: options: command:
     bindWith key options "spawn-sh" command;
-
-  # Noctalia palette (v2 JSON) generated from the active theme, so the shell,
-  # bar, panels and launcher follow `theme <name>` too.
-  noctaliaPalette = {
-    version = 2;
-    base = "Config";
-    dark = {
-      primary = "#${theme.accent}";
-      on_primary = "#${theme.bg}";
-      secondary = "#${theme.cyan}";
-      on_secondary = "#${theme.bg}";
-      tertiary = "#${theme.magenta}";
-      on_tertiary = "#${theme.bg}";
-      error = "#${theme.red}";
-      on_error = "#${theme.bg}";
-      surface = "#${theme.bg}";
-      on_surface = "#${theme.fg}";
-      on_surface_variant = "#${theme.white}";
-      surface_container = "#${theme.selection}";
-      outline_variant = "#${theme.brightBlack}";
-      shadow = "#${theme.bg}";
-      hover = "#${theme.selection}";
-      on_hover = "#${theme.fg}";
-      terminal = {
-        background = "#${theme.bg}";
-        foreground = "#${theme.fg}";
-        cursor = "#${theme.cursor}";
-        cursor_text = "#${theme.bg}";
-        selection_bg = "#${theme.selection}";
-        selection_fg = "#${theme.fg}";
-        normal = {
-          black = "#${theme.black}";
-          red = "#${theme.red}";
-          green = "#${theme.green}";
-          yellow = "#${theme.yellow}";
-          blue = "#${theme.blue}";
-          magenta = "#${theme.magenta}";
-          cyan = "#${theme.cyan}";
-          white = "#${theme.white}";
-        };
-        bright = {
-          black = "#${theme.brightBlack}";
-          red = "#${theme.brightRed}";
-          green = "#${theme.brightGreen}";
-          yellow = "#${theme.brightYellow}";
-          blue = "#${theme.brightBlue}";
-          magenta = "#${theme.brightMagenta}";
-          cyan = "#${theme.brightCyan}";
-          white = "#${theme.brightWhite}";
-        };
-      };
-    };
-  };
 in
 
 {
+  imports = [
+    ./modules/home-manager/shared
+    ./modules/home-manager/features/desktop/noctalia.nix
+  ];
+
   home.username = username;
   home.homeDirectory = "/home/${username}";
   home.stateVersion = "26.05";
@@ -268,47 +219,6 @@ in
     tray = "auto";
   };
 
-  # --- Noctalia (Wayland shell / bar) -------------------------------------
-  programs.noctalia = {
-    enable = true;
-
-    # `theme <name>` also recolours the shell: the palette below is generated
-    # from themes.nix and installed as ~/.config/noctalia/palettes/Config.json.
-    customPalettes.Config = noctaliaPalette;
-
-    settings = {
-      accessibility.ui_scale = 1.0;
-      shell = {
-        font_family = "JetBrainsMono Nerd Font Mono";
-        time_format = "{:%H:%M}";
-        date_format = "%a, %b %d";
-        telemetry_enabled = false;
-        clipboard_enabled = true;
-        animation.enabled = true;
-      };
-      theme = {
-        mode = if themeName == "catppuccin-latte" then "light" else "dark";
-        source = "custom";
-        custom_palette = "Config";
-      };
-      # Wallpaper is owned by noctalia (picker + transitions + IPC).
-      # directory = "" means the XDG Pictures folder (~/Pictures).
-      wallpaper = {
-        enabled = true;
-        fill_mode = "crop";
-        directory = "";
-        transition = [
-          "fade"
-          "wipe"
-          "pixel"
-          "crt"
-        ];
-        transition_duration = 1200;
-        transition_on_startup = true;
-      };
-    };
-  };
-
   # --- Niri (Wayland compositor) ------------------------------------------
   programs.niri = {
     package = pkgs.niri;
@@ -381,6 +291,7 @@ in
         // (spawn "Mod+D" [ "noctalia" "msg" "panel-toggle" "launcher" ])
         // (spawn "Mod+Shift+B" [ "noctalia" "msg" "panel-toggle" "wallpaper" ])
         // (spawn "Mod+Shift+W" [ "noctalia" "msg" "wallpaper-random" ])
+        // (spawn "Mod+Shift+T" [ "noctalia" "msg" "theme-mode-toggle" ])
         // (spawn "Mod+E" [
           "alacritty"
           "-e"
@@ -394,8 +305,10 @@ in
           "notifications"
         ])
         // (bind "Ctrl+Alt+L" "spawn" [
-          "swaylock"
-          "-f"
+          "noctalia"
+          "msg"
+          "session"
+          "lock"
         ])
         # Window management
         // (bind "Mod+Q" "close-window" [ ])
