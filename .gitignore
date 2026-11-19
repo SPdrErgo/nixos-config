@@ -1,0 +1,6 @@
+result
+result-*
+*.hm-backup
+.direnv/
+build*.log
+hardware-configuration.nix
