@@ -44,6 +44,20 @@
   # --- Desktop (niri / Wayland) -------------------------------------------
   services.xserver.enable = true;
   services.displayManager.ly.enable = true;
+
+  # Login screen: Conway's Game of Life on a dark green background.
+  # Colors are 0xSSRRGGBB (see `res/config.ini` in the ly sources).
+  services.displayManager.ly.settings = {
+    animation = "gameoflife";
+    bg = "0x000B3E1C";
+    fg = "0x00EAFFEA";
+    border_fg = "0x0040FF80";
+    gameoflife_fg = "0x006BFF9A";
+    gameoflife_frame_delay = 6;
+    gameoflife_initial_density = "0.4";
+    gameoflife_entropy_interval = 10;
+  };
+
   services.xserver.xkb = {
     layout = "us,ru";
     variant = "";
@@ -141,6 +155,7 @@
   environment.systemPackages = with pkgs; [
     # base
     git
+    shadow # chpasswd: used by the installer to set root/user passwords
     neovim
     wget
     curl

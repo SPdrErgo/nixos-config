@@ -11,7 +11,8 @@ Catppuccin/starship, yazi/Thunar, udiskie. Десктопных окружени
 | `flake.nix` | inputs: nixpkgs 26.05, home-manager, niri-flake, noctalia (cachix), zen-browser; установщики `install` / `install-iso` |
 | `user.nix` | имя пользователя по умолчанию (установщик пишет `user-local.nix`, который этот файл перекрывает) |
 | `configuration.nix` | система: boot, сеть, niri, pipewire, кеши, GC (SSH выключен) |
-| `home.nix` | пользователь: zsh/starship/zoxide, niri, noctalia, терминалы, Zen, Zed, yazi/Thunar, udiskie, `nh` |
+| `home.nix` | пользователь: zsh/starship/zoxide, niri, noctalia, fuzzel, терминалы, Zen, Zed, yazi/Thunar, udiskie, `nh` |
+| обои | не хранятся в репозитории: тянутся с GitHub (`D3Ext/aesthetic-wallpapers`) через `pkgs.fetchurl` и ставятся в `~/.local/share/wallpapers` |
 | `hardware-configuration.nix` | **не хранится в репозитории** — генерируется на каждой машине (`nixos-generate-config`) |
 | `user-local.nix` | **не хранится в репозитории** — машино-специфичное имя пользователя |
 | `starship-catppuccin-powerline.toml` | пресет Starship |
@@ -55,7 +56,12 @@ sudo nix --extra-experimental-features 'nix-command flakes' \
 1. `Type YES to continue` — подтверждение, что диск будет стёрт;
 2. `Encrypt the root partition with LUKS? [y/N]` — шифрование корня (btrfs лежит внутри LUKS2,
    пароль спрашивается дважды);
-3. `Username` — имя пользователя.
+3. `Username` — имя пользователя;
+4. `Root password` — пароль root (дважды);
+5. `Password for <user>` — пароль пользователя (дважды).
+
+Оба пароля применяются в конце установки через `chpasswd` (а не через интерактивный `passwd`
+в chroot), поэтому они гарантированно попадают в `/etc/shadow` целевой системы.
 
 Что делает:
 
@@ -64,7 +70,7 @@ sudo nix --extra-experimental-features 'nix-command flakes' \
 - GPT: ESP 512 MiB + btrfs с subvolumes `@`, `@home`, `@nix` (опционально — внутри LUKS2);
 - `nixos-generate-config` + `nixos-install` с вашим flake;
 - перед сборкой проверяет, какие бинарные кеши реально отвечают, и передаёт только их;
-- после установки задаёт пароль пользователя и делает `/etc/nixos` git-чекаутом.
+- после установки задаёт пароли root и пользователя и делает `/etc/nixos` git-чекаутом.
 
 После установки: `reboot`, вынуть флешку. Требуется публичный репозиторий.
 
@@ -124,6 +130,23 @@ services.openssh = {
   settings.PermitRootLogin = "no";
 };
 ```
+
+## Горячие клавиши (niri)
+
+| Клавиши | Действие |
+|---|---|
+| `Super+Return` | терминал (`alacritty`) |
+| `Super+D` | меню приложений (`fuzzel`) |
+| `Super+E` | файловый менеджер (`yazi`) |
+| `Super+Shift+W` | случайные обои из `~/.local/share/wallpapers` |
+| `Super+X` | панель noctalia |
+| `Ctrl+Alt+L` | заблокировать (`swaylock`) |
+
+## Экран входа (ly)
+
+`services.displayManager.ly.settings` включает анимацию **Game of Life** на тёмно-зелёном фоне
+(`bg`, `gameoflife_fg`, `border_fg`). Цвета задаются как `0xSSRRGGBB`, как в `res/config.ini` ly.
+Если анимация не нужна — уберите блок `settings` из `configuration.nix`.
 
 ## Обновление системы через git
 

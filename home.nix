@@ -25,6 +25,22 @@ let
   spawnShellWith =
     key: options: command:
     bindWith key options "spawn-sh" command;
+
+  # Wallpapers are fetched from GitHub at build time and installed into
+  # ~/.local/share/wallpapers (pinned by hash, so builds are reproducible).
+  # Source: https://github.com/D3Ext/aesthetic-wallpapers
+  wallpaperBase = "https://raw.githubusercontent.com/D3Ext/aesthetic-wallpapers/main/images";
+  fetchWallpaper = file: hash: pkgs.fetchurl {
+    url = "${wallpaperBase}/${file}";
+    inherit hash;
+  };
+  wallpapers = {
+    "everforest-robin.png" = fetchWallpaper "everforest_robin.png" "sha256-cMjUEMDpGuwlAftlPWM75qcM9DuVsxdSbH7PC5enXDw=";
+    "everforest-one-piece.png" = fetchWallpaper "everforest_one_piece.png" "sha256-xhUFWVWUBIj4LElsI8e35u8kPrFSW+LkQB0Ib08aEXc=";
+    "plant.png" = fetchWallpaper "plant.png" "sha256-CCuJTnX+jbN4KpzQ9z+jRv5sFRKpV+0XD2Pmgnp7fk4=";
+    "forest-bridge.jpg" = fetchWallpaper "forest-bridge.jpg" "sha256-JfM9ZbT5SSO6NgIA5crhYpv8MFcK17RjCI9brbm7Hzo=";
+  };
+  defaultWallpaper = wallpapers."everforest-robin.png";
 in
 
 {
@@ -33,6 +49,28 @@ in
   home.stateVersion = "26.05";
 
   programs.home-manager.enable = true;
+
+  # Wallpapers, fetched from GitHub at build time (see the `wallpapers` binding).
+  # Mod+Shift+W runs the random switcher from ~/.local/bin.
+  home.file =
+    (lib.mapAttrs' (
+      name: src: lib.nameValuePair ".local/share/wallpapers/${name}" { source = src; }
+    ) wallpapers)
+    // {
+      ".local/bin/wallpaper-random" = {
+        executable = true;
+        text = ''
+          #!/usr/bin/env bash
+          set -euo pipefail
+          dir="$HOME/.local/share/wallpapers"
+          [ -d "$dir" ] || exit 1
+          file=$(find -L "$dir" -type f | shuf -n 1)
+          pkill -x swaybg 2>/dev/null || true
+          sleep 0.2
+          exec swaybg -m fill -i "$file"
+        '';
+      };
+    };
 
   # --- Git ----------------------------------------------------------------
   programs.git = {
@@ -161,6 +199,39 @@ in
     };
   };
 
+  # Application launcher (Mod+D).
+  programs.fuzzel = {
+    enable = true;
+    settings = {
+      main = {
+        font = "JetBrainsMono Nerd Font Mono:size=11";
+        terminal = "alacritty";
+        layer = "overlay";
+        width = 40;
+        lines = 12;
+        prompt = "❯ ";
+        "icons-enabled" = "yes";
+      };
+      border = {
+        width = 2;
+        radius = 8;
+      };
+      colors = {
+        background = "0b3e1cee";
+        text = "eaffead9";
+        prompt = "6bff9aff";
+        placeholder = "8fbfa0ff";
+        input = "eaffeaee";
+        match = "6bff9aff";
+        selection = "1d6b3aff";
+        "selection-text" = "ffffffee";
+        "selection-match" = "b6ffcaff";
+        counter = "8fbfa0ff";
+        border = "6bff9aff";
+      };
+    };
+  };
+
   # Thunar as the default GUI file manager.
   xdg.mimeApps = {
     enable = true;
@@ -201,6 +272,17 @@ in
 
       spawn-at-startup = [
         { argv = [ "noctalia" ]; }
+        # Wallpaper (niri has no background of its own).
+        # Mod+Shift+W switches to a random one from ~/.local/share/wallpapers.
+        {
+          argv = [
+            "swaybg"
+            "-m"
+            "fill"
+            "-i"
+            "${defaultWallpaper}"
+          ];
+        }
       ];
 
       xwayland-satellite = {
@@ -260,6 +342,8 @@ in
       binds =
         # Apps
         (spawn "Mod+Return" [ "alacritty" ])
+        // (spawn "Mod+D" [ "fuzzel" ])
+        // (spawn "Mod+Shift+W" [ "/home/${username}/.local/bin/wallpaper-random" ])
         // (spawn "Mod+E" [
           "alacritty"
           "-e"
@@ -451,6 +535,8 @@ in
     playerctl
     wl-clipboard
     swaylock
+    swaybg
+    procps # pkill for the wallpaper switcher
     xwayland-satellite
 
     # GUI file manager (Thunar + thumbnails + removable media)

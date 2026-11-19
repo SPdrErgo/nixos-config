@@ -76,6 +76,29 @@
         }
       '';
 
+      # Reads a password twice (no echo) and prints it on stdout. Prompts go to
+      # stderr, so `VAR=$(read_password "Root password")` works.
+      readPassword = ''
+        read_password() {
+          local prompt="$1" p1 p2
+          while :; do
+            read -r -s -p "$prompt: " p1
+            echo >&2
+            read -r -s -p "Repeat $prompt: " p2
+            echo >&2
+            if [ -z "$p1" ]; then
+              echo "Password must not be empty." >&2
+              continue
+            fi
+            if [ "$p1" = "$p2" ]; then
+              printf '%s' "$p1"
+              return 0
+            fi
+            echo "Passwords do not match." >&2
+          done
+        }
+      '';
+
       # One-command installer for an existing NixOS (minimal or full):
       #   sudo nix --extra-experimental-features 'nix-command flakes' \
       #     run github:SPdrErgo/nixos-config#install
@@ -90,6 +113,8 @@
         set -euo pipefail
 
         SRC=${self}
+
+        ${readPassword}
 
         ${syncConfig}
 
@@ -141,6 +166,21 @@
           exit 1
         fi
 
+        USER_PASS=$(read_password "Password for $USER_NAME")
+        ROOT_PASS=""
+        read -r -s -p "Root password (empty = keep current): " ROOT_PASS
+        echo
+        if [ -n "$ROOT_PASS" ]; then
+          root2=""
+          read -r -s -p "Repeat root password: " root2
+          echo
+          if [ "$ROOT_PASS" != "$root2" ]; then
+            echo "Root passwords do not match." >&2
+            exit 1
+          fi
+          unset root2
+        fi
+
         sync_config /etc/nixos
         cp "$HW" /etc/nixos/hardware-configuration.nix
         printf '{ username = "%s"; }\n' "$USER_NAME" > /etc/nixos/user-local.nix
@@ -168,11 +208,14 @@
           chown -h "$USER_NAME":users "/home/$USER_NAME/nixos-config" || true
         fi
 
-        if [ -t 0 ] && [ -x /run/wrappers/bin/passwd ]; then
-          echo
-          echo "Set a password for $USER_NAME:"
-          /run/wrappers/bin/passwd "$USER_NAME" || true
-        fi
+        {
+          if [ -n "$ROOT_PASS" ]; then
+            printf 'root:%s\n' "$ROOT_PASS"
+          fi
+          printf '%s:%s\n' "$USER_NAME" "$USER_PASS"
+        } | ${pkgs.shadow}/bin/chpasswd
+        unset ROOT_PASS USER_PASS
+        echo "Passwords updated."
 
         echo "Done. /etc/nixos is a git checkout; update it with 'git -C /etc/nixos pull'."
       '';
@@ -197,6 +240,8 @@
 
         # Source tree of this flake in the Nix store.
         SRC=${self}
+
+        ${readPassword}
 
         ${syncConfig}
 
@@ -259,6 +304,9 @@
           echo "Invalid username: $USER_NAME" >&2
           exit 1
         fi
+
+        ROOT_PASS=$(read_password "Root password")
+        USER_PASS=$(read_password "Password for $USER_NAME")
 
         wipefs -a "$DISK" >/dev/null
         parted -s "$DISK" mklabel gpt
@@ -327,13 +375,25 @@
         export NIX_CONFIG="experimental-features = nix-command flakes"
         # `path:` keeps the gitignored hardware-configuration.nix in the build.
         /run/current-system/sw/bin/nixos-install --flake "path:/mnt/etc/nixos#nixos" \
+          --no-root-password \
           --option substituters "$SUBS" \
           --option trusted-public-keys "${cacheKeys}" \
           --option connect-timeout 15 \
           --option download-attempts 3
 
         /run/current-system/sw/bin/nixos-enter --root /mnt -c "chown -R $USER_NAME:users /etc/nixos; ln -sfn /etc/nixos /home/$USER_NAME/nixos-config; chown -h $USER_NAME:users /home/$USER_NAME/nixos-config" || true
-        /run/current-system/sw/bin/nixos-enter --root /mnt -c "passwd $USER_NAME" || true
+
+        # Set both passwords explicitly. chpasswd reads from stdin, so no TTY
+        # tricks with `passwd` inside the chroot are needed.
+        PWFILE=/mnt/root/.nixos-install-pw
+        {
+          printf 'root:%s\n' "$ROOT_PASS"
+          printf '%s:%s\n' "$USER_NAME" "$USER_PASS"
+        } > "$PWFILE"
+        chmod 600 "$PWFILE"
+        /run/current-system/sw/bin/nixos-enter --root /mnt -c "chpasswd < /root/.nixos-install-pw"
+        rm -f "$PWFILE"
+        unset ROOT_PASS USER_PASS
 
         umount -R /mnt
         if [ -n "$LUKS_NAME" ]; then
