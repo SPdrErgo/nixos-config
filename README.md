@@ -162,8 +162,32 @@ Noctalia при старте сразу ставит дефолтные обои
 - палитра самого noctalia строится **из текущих обоев** (`theme.source = "wallpaper"`),
   поэтому смена обоев автоматически меняет цвета бара/панелей/лаунчера.
 
-Поменять/добавить обои: положи файл в `modules/home-manager/shared/wallpapers/` и укажи его в
-`modules/home-manager/features/desktop/noctalia.nix` как `wallpaper.default.path`.
+Поменять/добавить обои:
+
+1. **В репозиторий** (попадёт в git, доступно на всех машинах):
+
+   ```bash
+   cp ~/Downloads/*.jpg /etc/nixos/modules/home-manager/shared/wallpapers/
+   cd /etc/nixos && git add modules/home-manager/shared/wallpapers && \
+     git commit -m "wallpapers" && rebuild
+   ```
+
+2. **Локально, без git** — положи файлы в `/etc/nixos/wallpapers-local/`
+   (папка в `.gitignore`, подхватывается при сборке):
+
+   ```bash
+   mkdir -p /etc/nixos/wallpapers-local
+   cp ~/Downloads/*.jpg /etc/nixos/wallpapers-local/
+   rebuild
+   ```
+
+Обе папки объединяются через `symlinkJoin` в `~/.config/wallpapers`, поэтому после `rebuild`
+новые файлы сразу видны в панели `Super+Shift+B`, в `wallpaper-random` и в лаунчере
+(провайдер `/wall`).
+
+> Внешние банки обоев (например `makccr/wallpapers`, как в референсе) можно добавить
+> `pkgs.fetchFromGitHub` в `modules/home-manager/shared/default.nix`, но это сотни мегабайт
+> и заметно медленнее при первой сборке — поэтому по умолчанию их нет.
 
 ## Экран входа (ly)
 
