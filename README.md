@@ -1,4 +1,4 @@
-# NixOS config — spdr_v0x8r
+# NixOS 26.05 reference config
 
 Flake для **NixOS 26.05**: KDE Plasma 6 + **niri** (Wayland) + **noctalia**, home-manager, Zen Browser, Zed, Catppuccin/starship, yazi/Thunar, udiskie.
 
@@ -7,13 +7,14 @@ Flake для **NixOS 26.05**: KDE Plasma 6 + **niri** (Wayland) + **noctalia**, 
 | Файл | Назначение |
 |---|---|
 | `flake.nix` | inputs: nixpkgs 26.05, home-manager, niri-flake, noctalia (cachix), zen-browser |
-| `configuration.nix` | система: boot, сеть, KDE + niri, pipewire, SSH, бинарные кеши, GC |
+| `user.nix` | имя пользователя; установщик перезаписывает его выбранным значением |
+| `configuration.nix` | система: boot, сеть, KDE + niri, pipewire, кеши, GC (SSH выключен) |
 | `home.nix` | пользователь: zsh/starship/zoxide, niri, noctalia, терминалы, Zen, Zed, yazi/Thunar, udiskie, `nh` |
 | `hardware-configuration.nix` | **не хранится в репозитории** — генерируется на каждой машине (`nixos-generate-config`) |
 | `starship-catppuccin-powerline.toml` | пресет Starship |
 | `scripts/cached-build.sh` | сборка до активации с включёнными кешами |
 
-Пользователь: `spdr_v0x8r` (wheel, networkmanager), шелл zsh, пароль в конфиге не задан.
+Пользователь создаётся при установке: имя вводится в установщике и пишется в `user.nix` (по умолчанию `nixos`), группы `wheel`/`networkmanager`, шелл zsh, пароль задаётся там же. SSH по умолчанию **выключен**.
 
 ## Установка одной командой (NixOS уже установлена)
 
@@ -31,7 +32,7 @@ sudo nix --extra-experimental-features 'nix-command flakes' \
 - копирует конфиг из репозитория в `/etc/nixos`;
 - делает `nixos-rebuild switch` с включёнными бинарными кешами;
 - создаёт `~/nixos-config` → `/etc/nixos`, чтобы работал alias `rebuild`;
-- предлагает задать пароль `spdr_v0x8r`.
+- спрашивает имя пользователя (по умолчанию `nixos`) и его пароль.
 
 > Нужен **публичный** репозиторий. Если он приватный — авторизуйтесь (`gh auth login` или PAT), либо клонируйте вручную и выполните `sudo nixos-rebuild switch --flake /etc/nixos#nixos`.
 
@@ -49,7 +50,7 @@ sudo nix --extra-experimental-features 'nix-command flakes' \
 - затирает **весь диск** (укажите свой: `/dev/sda`, `/dev/nvme0n1`, ...);
 - GPT: ESP 512 MiB + btrfs с subvolumes `@`, `@home`, `@nix`;
 - `nixos-generate-config` + `nixos-install` с вашим flake;
-- спрашивает `YES`, затем root-пароль и пароль `spdr_v0x8r`.
+- спрашивает `YES`, имя пользователя (по умолчанию `nixos`), root-пароль и пароль этого пользователя.
 
 После установки: `reboot`, вынуть флешку. Требуется публичный репозиторий.
 
@@ -80,27 +81,31 @@ sudo nix --extra-experimental-features 'nix-command flakes' \
    nixos-install --flake /mnt/etc/nixos#nixos
    ```
 
-6. Задать пароль пользователю:
+6. Задать пароль пользователю (имя — из `/mnt/etc/nixos/user.nix`, по умолчанию `nixos`):
 
    ```bash
-   nixos-enter --root /mnt -c 'passwd spdr_v0x8r'
+   nixos-enter --root /mnt -c 'passwd nixos'
    ```
 
 7. Перезагрузка. В SDDM выбрать сессию **niri** или **Plasma**.
 
 ## SSH
 
-SSH включён, но ключей в снимке нет. После установки добавьте свой:
-
-```bash
-ssh-copy-id spdr_v0x8r@<host>
-```
-
-или впишите ключ в `configuration.nix`:
+В этом снимке SSH **выключен**. Чтобы включить, сначала добавьте свой ключ и только потом включайте сервис (одним rebuild, иначе потеряете доступ):
 
 ```nix
-users.users.spdr_v0x8r.openssh.authorizedKeys.keys = [ "ssh-ed25519 AAAA..." ];
+users.users.<username>.openssh.authorizedKeys.keys = [
+  "ssh-ed25519 AAAA...ваш ключ..."
+];
+services.openssh = {
+  enable = true;
+  settings.PasswordAuthentication = false;
+  settings.KbdInteractiveAuthentication = false;
+  settings.PermitRootLogin = "no";
+};
 ```
+
+Или оставьте SSH выключенным и работайте локально.
 
 ## После установки
 

@@ -31,6 +31,7 @@
     let
       system = "x86_64-linux";
       pkgs = nixpkgs.legacyPackages.${system};
+      username = (import ./user.nix).username;
 
       # One-command installer for a fresh NixOS (minimal) system:
       #   sudo nix --extra-experimental-features 'nix-command flakes' \
@@ -72,24 +73,38 @@
         cp "$HW" /etc/nixos/hardware-configuration.nix
         echo "kept existing /etc/nixos/hardware-configuration.nix"
 
+        USER_NAME="nixos"
+        if [ -n "$(printenv SUDO_USER)" ]; then
+          USER_NAME="$(printenv SUDO_USER)"
+        fi
+        read -r -p "Username [$USER_NAME]: " input
+        if [ -n "$input" ]; then
+          USER_NAME="$input"
+        fi
+        if ! printf '%s' "$USER_NAME" | grep -qE '^[a-z_][a-z0-9_-]*$' || [ "$USER_NAME" = root ]; then
+          echo "Invalid username: $USER_NAME" >&2
+          exit 1
+        fi
+        printf '{ username = "%s"; }\n' "$USER_NAME" > /etc/nixos/user.nix
+
         export NIX_CONFIG="experimental-features = nix-command flakes"
         /run/current-system/sw/bin/nixos-rebuild switch --flake /etc/nixos#nixos \
           --option extra-substituters "https://mirror.yandex.ru/nixos https://niri.cachix.org https://noctalia.cachix.org" \
           --option extra-trusted-public-keys "niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= noctalia.cachix.org-1:pCOR47nnMEo5thcxNDtzWpOxNFQsBRglJzxWPp3dkU4="
 
         # Keep the familiar ~/nixos-config path working for the `rebuild` alias.
-        if [ -d /home/spdr_v0x8r ]; then
-          if [ -e /home/spdr_v0x8r/nixos-config ] && [ ! -L /home/spdr_v0x8r/nixos-config ]; then
-            mv /home/spdr_v0x8r/nixos-config "/home/spdr_v0x8r/nixos-config.bak-$STAMP"
+        if [ -d "/home/$USER_NAME" ]; then
+          if [ -e "/home/$USER_NAME/nixos-config" ] && [ ! -L "/home/$USER_NAME/nixos-config" ]; then
+            mv "/home/$USER_NAME/nixos-config" "/home/$USER_NAME/nixos-config.bak-$STAMP"
           fi
-          ln -sfn /etc/nixos /home/spdr_v0x8r/nixos-config
-          chown -h spdr_v0x8r:users /home/spdr_v0x8r/nixos-config || true
+          ln -sfn /etc/nixos "/home/$USER_NAME/nixos-config"
+          chown -h "$USER_NAME":users "/home/$USER_NAME/nixos-config" || true
         fi
 
         if [ -t 0 ] && [ -x /run/wrappers/bin/passwd ]; then
           echo
-          echo "Set a password for spdr_v0x8r:"
-          /run/wrappers/bin/passwd spdr_v0x8r || true
+          echo "Set a password for $USER_NAME:"
+          /run/wrappers/bin/passwd "$USER_NAME" || true
         fi
 
         echo "Done. Config installed to /etc/nixos."
@@ -145,6 +160,16 @@
           exit 1
         fi
 
+        USER_NAME="nixos"
+        read -r -p "Username [$USER_NAME]: " input
+        if [ -n "$input" ]; then
+          USER_NAME="$input"
+        fi
+        if ! printf '%s' "$USER_NAME" | grep -qE '^[a-z_][a-z0-9_-]*$' || [ "$USER_NAME" = root ]; then
+          echo "Invalid username: $USER_NAME" >&2
+          exit 1
+        fi
+
         umount -R /mnt 2>/dev/null || true
         wipefs -a "$DISK" >/dev/null
         parted -s "$DISK" mklabel gpt
@@ -171,13 +196,14 @@
 
         /run/current-system/sw/bin/nixos-generate-config --root /mnt
         cp -a "$SRC/." /mnt/etc/nixos/
+        printf '{ username = "%s"; }\n' "$USER_NAME" > /mnt/etc/nixos/user.nix
 
         export NIX_CONFIG="experimental-features = nix-command flakes"
         /run/current-system/sw/bin/nixos-install --flake /mnt/etc/nixos#nixos \
           --option extra-substituters "https://mirror.yandex.ru/nixos https://niri.cachix.org https://noctalia.cachix.org" \
           --option extra-trusted-public-keys "niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= noctalia.cachix.org-1:pCOR47nnMEo5thcxNDtzWpOxNFQsBRglJzxWPp3dkU4="
 
-        /run/current-system/sw/bin/nixos-enter --root /mnt -c 'passwd spdr_v0x8r' || true
+        /run/current-system/sw/bin/nixos-enter --root /mnt -c "passwd $USER_NAME" || true
 
         umount -R /mnt
         echo "Installed. Remove the ISO and reboot."
@@ -209,7 +235,7 @@
         '';
 
       nixosConfigurations.nixos = nixpkgs.lib.nixosSystem {
-        specialArgs = { inherit inputs; };
+        specialArgs = { inherit inputs username; };
 
         modules = [
           ./configuration.nix
@@ -219,7 +245,8 @@
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
             home-manager.backupFileExtension = "hm-backup";
-            home-manager.users.spdr_v0x8r = {
+            home-manager.extraSpecialArgs = { inherit username; };
+            home-manager.users.${username} = {
               imports = [
                 inputs.niri.homeModules.config
                 inputs.noctalia.homeModules.default

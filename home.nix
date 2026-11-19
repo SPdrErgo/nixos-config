@@ -3,6 +3,7 @@
   config,
   lib,
   pkgs,
+  username,
   ...
 }:
 
@@ -27,8 +28,8 @@ let
 in
 
 {
-  home.username = "spdr_v0x8r";
-  home.homeDirectory = "/home/spdr_v0x8r";
+  home.username = username;
+  home.homeDirectory = "/home/${username}";
   home.stateVersion = "26.05";
 
   programs.home-manager.enable = true;
@@ -38,8 +39,8 @@ in
     enable = true;
     settings = {
       # TODO: set your real name/email
-      user.name = "spdr_v0x8r";
-      user.email = "spdr_v0x8r@nixos.local";
+      user.name = username;
+      user.email = "${username}@localhost";
       init.defaultBranch = "main";
       pull.rebase = true;
     };
@@ -119,7 +120,7 @@ in
       };
     };
 
-    profiles.spdr_v0x8r = {
+    profiles.${username} = {
       isDefault = true;
     };
   };

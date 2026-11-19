@@ -7,6 +7,7 @@
   lib,
   pkgs,
   inputs,
+  username,
   ...
 }:
 
@@ -71,9 +72,10 @@
   };
 
   # --- Users --------------------------------------------------------------
-  users.users.spdr_v0x8r = {
+  # Username comes from ./user.nix (the installer asks for it).
+  users.users.${username} = {
     isNormalUser = true;
-    description = "spdr_v0x8r";
+    description = username;
     extraGroups = [
       "networkmanager"
       "wheel"
@@ -82,20 +84,16 @@
     packages = with pkgs; [
       kdePackages.kate
     ];
-    # No SSH key in the snapshot: add your own with
-    #   ssh-copy-id spdr_v0x8r@<host>
-    # or put `openssh.authorizedKeys.keys = [ "ssh-ed25519 ..." ];` here.
   };
 
-  # --- SSH ----------------------------------------------------------------
-  services.openssh = {
-    enable = true;
-    settings = {
-      PermitRootLogin = "no";
-      PasswordAuthentication = true; # key auth is set up above; turn off once sure
-      KbdInteractiveAuthentication = false;
-    };
-  };
+  # SSH is intentionally disabled in this reference config.
+  # Enable it yourself (add your key first!):
+  #
+  # services.openssh = {
+  #   enable = true;
+  #   settings.PasswordAuthentication = false;
+  # };
+  # users.users.${username}.openssh.authorizedKeys.keys = [ "ssh-ed25519 AAAA..." ];
 
   # --- Nix ----------------------------------------------------------------
   nix.settings = {
@@ -107,7 +105,7 @@
     auto-optimise-store = true;
     trusted-users = [
       "root"
-      "spdr_v0x8r"
+      username
     ];
 
     # Binary caches (from AndrianoTurner/nixdotfiles + niri-flake).
