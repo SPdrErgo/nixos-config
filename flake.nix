@@ -1,5 +1,5 @@
 {
-  description = "NixOS VM configuration (nixos-26.05)";
+  description = "NixOS 26.05 reference config (niri + home-manager)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
@@ -31,23 +31,73 @@
     let
       system = "x86_64-linux";
       pkgs = nixpkgs.legacyPackages.${system};
-      username = (import ./user.nix).username;
 
-      # One-command installer for a fresh NixOS (minimal) system:
+      # The installers write ./user-local.nix (gitignored) with the chosen
+      # name; the tracked ./user.nix stays untouched so `git pull` is clean.
+      username =
+        if builtins.pathExists ./user-local.nix then
+          (import ./user-local.nix).username
+        else
+          (import ./user.nix).username;
+
+      repoUrl = "https://github.com/SPdrErgo/nixos-config";
+
+      # cache.nixos.org has to stay in this list: `--option trusted-public-keys`
+      # replaces the defaults, it does not extend them.
+      cacheKeys = "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= noctalia.cachix.org-1:pCOR47nnMEo5thcxNDtzWpOxNFQsBRglJzxWPp3dkU4=";
+
+      # Shared by both installers: copy the flake source into $1 and turn it
+      # into a git checkout of repoUrl, so the installed system can be updated
+      # with `git pull`. Machine-specific files are written by the caller.
+      syncConfig = ''
+        sync_config() {
+          local dest="$1"
+          if [ ! -f "$SRC/flake.nix" ]; then
+            echo "Internal error: flake source not found at '$SRC'." >&2
+            return 1
+          fi
+          export GIT_TERMINAL_PROMPT=0
+          rm -rf "$dest"
+          mkdir -p "$dest"
+          cp -a "$SRC/." "$dest"/
+          chmod -R u+w "$dest"
+          rm -rf "$dest/.git"
+          git -C "$dest" init -q -b main
+          git -C "$dest" remote add origin "${repoUrl}"
+          git -C "$dest" config pull.rebase true
+          if timeout 120 git -C "$dest" fetch -q origin main; then
+            git -C "$dest" reset --hard -q FETCH_HEAD
+            git -C "$dest" branch -q --set-upstream-to=origin/main main
+          else
+            echo "warning: could not reach ${repoUrl}" >&2
+            echo "warning: files were installed from the local flake source." >&2
+            echo "warning: later run: git -C $dest fetch origin && git -C $dest reset --hard origin/main" >&2
+          fi
+        }
+      '';
+
+      # One-command installer for an existing NixOS (minimal or full):
       #   sudo nix --extra-experimental-features 'nix-command flakes' \
       #     run github:SPdrErgo/nixos-config#install
       installer = pkgs.writeShellScriptBin "nixos-config-install" ''
-        export PATH="${pkgs.coreutils}/bin:$PATH"
+        export PATH="${
+          pkgs.lib.makeBinPath [
+            pkgs.coreutils
+            pkgs.git
+            pkgs.curl
+          ]
+        }:$PATH"
         set -euo pipefail
+
+        SRC=${self}
+
+        ${syncConfig}
 
         if [ "''${EUID}" -ne 0 ]; then
           echo "Run as root:" >&2
           echo "  sudo nix --extra-experimental-features 'nix-command flakes' run github:SPdrErgo/nixos-config#install" >&2
           exit 1
         fi
-
-        SRC=${self}
-        STAMP=$(date +%Y%m%d-%H%M%S)
 
         if [ ! -e /etc/NIXOS ]; then
           echo "Not a NixOS system (/etc/NIXOS missing)." >&2
@@ -59,21 +109,26 @@
           echo "Generate it first:  sudo nixos-generate-config" >&2
           exit 1
         fi
+
+        STAMP=$(date +%Y%m%d-%H%M%S)
+
         HW=$(mktemp)
         cp /etc/nixos/hardware-configuration.nix "$HW"
 
-        if [ -d /etc/nixos ]; then
-          cp -a /etc/nixos "/etc/nixos.bak-$STAMP"
+        OLD_USER=""
+        if [ -f /etc/nixos/user-local.nix ]; then
+          OLD_USER=$(sed -n 's/.*username *= *"\([^"]*\)".*/\1/p' /etc/nixos/user-local.nix | head -n 1)
+        fi
+        if [ -z "$OLD_USER" ] && [ -f /etc/nixos/user.nix ]; then
+          OLD_USER=$(sed -n 's/.*username *= *"\([^"]*\)".*/\1/p' /etc/nixos/user.nix | head -n 1)
         fi
 
-        rm -rf /etc/nixos
-        mkdir -p /etc/nixos
-        cp -a "$SRC/." /etc/nixos/
-        chmod -R u+w /etc/nixos
-        cp "$HW" /etc/nixos/hardware-configuration.nix
-        echo "kept existing /etc/nixos/hardware-configuration.nix"
+        cp -a /etc/nixos "/etc/nixos.bak-$STAMP"
 
         USER_NAME="nixos"
+        if [ -n "$OLD_USER" ]; then
+          USER_NAME="$OLD_USER"
+        fi
         if [ -n "$(printenv SUDO_USER)" ]; then
           USER_NAME="$(printenv SUDO_USER)"
         fi
@@ -85,12 +140,24 @@
           echo "Invalid username: $USER_NAME" >&2
           exit 1
         fi
-        printf '{ username = "%s"; }\n' "$USER_NAME" > /etc/nixos/user.nix
+
+        sync_config /etc/nixos
+        cp "$HW" /etc/nixos/hardware-configuration.nix
+        printf '{ username = "%s"; }\n' "$USER_NAME" > /etc/nixos/user-local.nix
+        chown -R "$USER_NAME":users /etc/nixos
+        echo "kept existing /etc/nixos/hardware-configuration.nix"
+
+        SUBS=$(bash "$SRC/scripts/nix-caches.sh" 2>/dev/null || true)
+        if [ -z "$SUBS" ]; then
+          SUBS="https://cache.nixos.org"
+        fi
 
         export NIX_CONFIG="experimental-features = nix-command flakes"
-        /run/current-system/sw/bin/nixos-rebuild switch --flake /etc/nixos#nixos \
-          --option extra-substituters "https://mirror.yandex.ru/nixos https://niri.cachix.org https://noctalia.cachix.org" \
-          --option extra-trusted-public-keys "niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= noctalia.cachix.org-1:pCOR47nnMEo5thcxNDtzWpOxNFQsBRglJzxWPp3dkU4="
+        /run/current-system/sw/bin/nixos-rebuild switch --flake "path:/etc/nixos#nixos" \
+          --option substituters "$SUBS" \
+          --option trusted-public-keys "${cacheKeys}" \
+          --option connect-timeout 15 \
+          --option download-attempts 3
 
         # Keep the familiar ~/nixos-config path working for the `rebuild` alias.
         if [ -d "/home/$USER_NAME" ]; then
@@ -107,7 +174,7 @@
           /run/wrappers/bin/passwd "$USER_NAME" || true
         fi
 
-        echo "Done. Config installed to /etc/nixos."
+        echo "Done. /etc/nixos is a git checkout; update it with 'git -C /etc/nixos pull'."
       '';
 
       # Full install from the minimal ISO. Wipes the target disk:
@@ -121,13 +188,17 @@
             pkgs.parted
             pkgs.btrfs-progs
             pkgs.dosfstools
+            pkgs.cryptsetup
+            pkgs.git
+            pkgs.curl
           ]
         }:$PATH"
         set -euo pipefail
 
-        # Source tree of this flake in the Nix store (the installer used to
-        # forget this line and died later with "SRC: unbound variable").
+        # Source tree of this flake in the Nix store.
         SRC=${self}
+
+        ${syncConfig}
 
         if [ "$(id -u)" -ne 0 ]; then
           echo "Run as root: sudo nix --extra-experimental-features 'nix-command flakes' run github:SPdrErgo/nixos-config#install-iso -- /dev/vda" >&2
@@ -159,6 +230,8 @@
           *) P1="$DISK"1; P2="$DISK"2 ;;
         esac
 
+        umount -R /mnt 2>/dev/null || true
+
         if lsblk -no MOUNTPOINTS "$DISK" 2>/dev/null | grep -q '[^[:space:]]'; then
           echo "Refusing: something from $DISK is mounted (live medium?)." >&2
           exit 1
@@ -171,6 +244,12 @@
           exit 1
         fi
 
+        read -r -p "Encrypt the root partition with LUKS? [y/N]: " ans
+        ENCRYPT=no
+        case "$ans" in
+          y | Y | yes | YES) ENCRYPT=yes ;;
+        esac
+
         USER_NAME="nixos"
         read -r -p "Username [$USER_NAME]: " input
         if [ -n "$input" ]; then
@@ -181,7 +260,6 @@
           exit 1
         fi
 
-        umount -R /mnt 2>/dev/null || true
         wipefs -a "$DISK" >/dev/null
         parted -s "$DISK" mklabel gpt
         parted -s "$DISK" mkpart ESP fat32 1MiB 513MiB
@@ -190,38 +268,77 @@
         udevadm settle
 
         mkfs.fat -F 32 -n NIXBOOT "$P1"
-        mkfs.btrfs -f -L nixos "$P2"
 
-        mount "$P2" /mnt
+        ROOT_PART="$P2"
+        LUKS_NAME=""
+        if [ "$ENCRYPT" = yes ]; then
+          while :; do
+            read -r -s -p "LUKS passphrase: " luks1
+            echo
+            read -r -s -p "Repeat passphrase: " luks2
+            echo
+            if [ -z "$luks1" ]; then
+              echo "Passphrase must not be empty." >&2
+              continue
+            fi
+            if [ "$luks1" = "$luks2" ]; then
+              break
+            fi
+            echo "Passphrases do not match." >&2
+          done
+          LUKS_NAME="luks-$(blkid -s UUID -o value "$P2")"
+          printf '%s' "$luks1" | cryptsetup luksFormat --type luks2 --batch-mode --label cryptroot --key-file - "$P2"
+          printf '%s' "$luks1" | cryptsetup open --type luks2 --key-file - "$P2" "$LUKS_NAME"
+          unset luks1 luks2
+          ROOT_PART="/dev/mapper/$LUKS_NAME"
+          udevadm settle
+          echo "LUKS enabled: $ROOT_PART"
+        fi
+
+        mkfs.btrfs -f -L nixos "$ROOT_PART"
+
+        mount "$ROOT_PART" /mnt
         btrfs subvolume create /mnt/@
         btrfs subvolume create /mnt/@home
         btrfs subvolume create /mnt/@nix
         umount /mnt
 
         opts="compress=zstd,noatime"
-        mount -o "$opts,subvol=@" "$P2" /mnt
+        mount -o "$opts,subvol=@" "$ROOT_PART" /mnt
         mkdir -p /mnt/home /mnt/nix /mnt/boot
-        mount -o "$opts,subvol=@home" "$P2" /mnt/home
-        mount -o "$opts,subvol=@nix" "$P2" /mnt/nix
+        mount -o "$opts,subvol=@home" "$ROOT_PART" /mnt/home
+        mount -o "$opts,subvol=@nix" "$ROOT_PART" /mnt/nix
         mount "$P1" /mnt/boot
 
         /run/current-system/sw/bin/nixos-generate-config --root /mnt
-        if [ ! -f "$SRC/flake.nix" ]; then
-          echo "Internal error: flake source not found at '$SRC'." >&2
-          exit 1
+        HW=$(mktemp)
+        cp /mnt/etc/nixos/hardware-configuration.nix "$HW"
+
+        sync_config /mnt/etc/nixos
+        cp "$HW" /mnt/etc/nixos/hardware-configuration.nix
+        printf '{ username = "%s"; }\n' "$USER_NAME" > /mnt/etc/nixos/user-local.nix
+
+        SUBS=$(bash "$SRC/scripts/nix-caches.sh" 2>/dev/null || true)
+        if [ -z "$SUBS" ]; then
+          SUBS="https://cache.nixos.org"
         fi
-        cp -a "$SRC/." /mnt/etc/nixos/
-        printf '{ username = "%s"; }\n' "$USER_NAME" > /mnt/etc/nixos/user.nix
+        echo "using substituters: $SUBS"
 
         export NIX_CONFIG="experimental-features = nix-command flakes"
-        /run/current-system/sw/bin/nixos-install --flake /mnt/etc/nixos#nixos \
-          --option extra-substituters "https://mirror.yandex.ru/nixos https://niri.cachix.org https://noctalia.cachix.org" \
-          --option extra-trusted-public-keys "niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= noctalia.cachix.org-1:pCOR47nnMEo5thcxNDtzWpOxNFQsBRglJzxWPp3dkU4="
+        # `path:` keeps the gitignored hardware-configuration.nix in the build.
+        /run/current-system/sw/bin/nixos-install --flake "path:/mnt/etc/nixos#nixos" \
+          --option substituters "$SUBS" \
+          --option trusted-public-keys "${cacheKeys}" \
+          --option connect-timeout 15 \
+          --option download-attempts 3
 
-        /run/current-system/sw/bin/nixos-enter --root /mnt -c "ln -sfn /etc/nixos /home/$USER_NAME/nixos-config; chown -h $USER_NAME:users /home/$USER_NAME/nixos-config" || true
+        /run/current-system/sw/bin/nixos-enter --root /mnt -c "chown -R $USER_NAME:users /etc/nixos; ln -sfn /etc/nixos /home/$USER_NAME/nixos-config; chown -h $USER_NAME:users /home/$USER_NAME/nixos-config" || true
         /run/current-system/sw/bin/nixos-enter --root /mnt -c "passwd $USER_NAME" || true
 
         umount -R /mnt
+        if [ -n "$LUKS_NAME" ]; then
+          cryptsetup close "$LUKS_NAME" || true
+        fi
         echo "Installed. Remove the ISO and reboot."
       '';
     in

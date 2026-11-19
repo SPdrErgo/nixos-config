@@ -41,10 +41,9 @@
     LC_TIME = "ru_RU.UTF-8";
   };
 
-  # --- Desktop (KDE Plasma 6) ---------------------------------------------
+  # --- Desktop (niri / Wayland) -------------------------------------------
   services.xserver.enable = true;
   services.displayManager.ly.enable = true;
-  #  services.desktopManager.plasma6.enable = true;
   services.xserver.xkb = {
     layout = "us,ru";
     variant = "";
@@ -58,7 +57,7 @@
   services.gvfs.enable = true;
   services.udisks2.enable = true;
 
-  # Niri (Wayland session, available alongside Plasma in SDDM).
+  # Niri (Wayland session, started by the `ly` display manager).
   programs.niri.enable = true;
 
   # --- Audio --------------------------------------------------------------
@@ -72,7 +71,7 @@
   };
 
   # --- Users --------------------------------------------------------------
-  # Username comes from ./user.nix (the installer asks for it).
+  # Username comes from ./user-local.nix (installer) or ./user.nix (default).
   users.users.${username} = {
     isNormalUser = true;
     description = username;
@@ -81,9 +80,6 @@
       "wheel"
     ];
     shell = pkgs.zsh;
-    packages = with pkgs; [
-      kdePackages.kate
-    ];
   };
 
   # SSH is intentionally disabled in this reference config.
@@ -108,17 +104,21 @@
       username
     ];
 
-    # Binary caches (from AndrianoTurner/nixdotfiles + niri-flake).
+    # Binary caches. Nix tries them in priority order and moves to the next
+    # one when a mirror is down; Yandex usually works from Russia, SJTU is a
+    # last-resort mirror of cache.nixos.org.
     connect-timeout = 10;
     stalled-download-timeout = 30;
-    download-attempts = 2;
+    download-attempts = 3;
     substituters = [
       "https://mirror.yandex.ru/nixos/?priority=10"
       "https://cache.nixos.org/?priority=40"
       "https://niri.cachix.org/?priority=50"
       "https://noctalia.cachix.org/?priority=60"
+      "https://mirror.sjtu.edu.cn/nix-channels/store?priority=90"
     ];
     trusted-public-keys = [
+      "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
       "niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964="
       "noctalia.cachix.org-1:pCOR47nnMEo5thcxNDtzWpOxNFQsBRglJzxWPp3dkU4="
     ];

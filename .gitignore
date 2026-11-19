@@ -4,3 +4,4 @@ result-*
 .direnv/
 build*.log
 hardware-configuration.nix
+user-local.nix

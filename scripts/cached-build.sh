@@ -5,7 +5,14 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+SUBS=$(bash scripts/nix-caches.sh 2>/dev/null || true)
+if [ -z "$SUBS" ]; then
+  SUBS="https://cache.nixos.org"
+fi
+
 exec nix build --no-link --print-out-paths \
-  --option substituters "https://cache.nixos.org https://mirror.yandex.ru/nixos https://niri.cachix.org https://noctalia.cachix.org" \
+  --option substituters "$SUBS" \
   --option trusted-public-keys "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= noctalia.cachix.org-1:pCOR47nnMEo5thcxNDtzWpOxNFQsBRglJzxWPp3dkU4=" \
-  ".#nixosConfigurations.nixos.config.system.build.toplevel"
+  --option connect-timeout 15 \
+  --option download-attempts 3 \
+  "path:$PWD#nixosConfigurations.nixos.config.system.build.toplevel"

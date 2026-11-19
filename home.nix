@@ -72,23 +72,6 @@ in
     };
   };
 
-  # Konsole has no home-manager module: ship a profile and make it default.
-  xdg.dataFile."konsole/NixOS.profile".text = ''
-    [Appearance]
-    Font=JetBrainsMono Nerd Font Mono,11,-1,5,50,0,0,0,0,0
-
-    [General]
-    Name=NixOS
-    Parent=FALLBACK/
-  '';
-
-  home.activation.konsoleDefaultProfile = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-    $DRY_RUN_CMD ${pkgs.kdePackages.kconfig}/bin/kwriteconfig6 \
-      --file "$HOME/.config/konsolerc" \
-      --group "Desktop Entry" \
-      --key DefaultProfile "NixOS.profile"
-  '';
-
   # --- Browser ------------------------------------------------------------
   programs.zen-browser = {
     enable = true;
@@ -427,8 +410,11 @@ in
     shellAliases = {
       ll = "ls -lah";
       la = "ls -A";
-      rebuild = "sudo nh os switch ~/nixos-config";
-      update = "sudo nh os switch --update ~/nixos-config";
+      # /etc/nixos is a git checkout, but hardware-configuration.nix and
+      # user-local.nix are gitignored, so rebuilds go through `path:`.
+      rebuild = "sudo /etc/nixos/scripts/rebuild.sh";
+      update = "git -C /etc/nixos pull --ff-only && sudo /etc/nixos/scripts/rebuild.sh";
+      upgrade = "nix flake update --flake /etc/nixos && sudo /etc/nixos/scripts/rebuild.sh";
       clean = "sudo nh clean all";
     };
   };
@@ -457,7 +443,7 @@ in
   home.packages = with pkgs; [
     fastfetch
     wget
-    # Nerd Font с powerline-глифами (  ) — выберите его в Konsole
+    # Nerd Font с powerline-глифами (  ) — выберите его в терминале
     nerd-fonts.jetbrains-mono
 
     # Niri helpers
