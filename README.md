@@ -252,6 +252,21 @@ Game of Life включается ASCII-дождь (`animation = "matrix"`), а 
 
 > Starship использует фиксированный пресет Catppuccin Powerline, он от темы не зависит.
 
+## Если при входе в niri просит пароль
+
+Это polkit. Самый частый виновник — `udiskie`: он пытается примонтировать внутренний или
+зашифрованный раздел, а udisks2 на это требует аутентификацию. В конфиге теперь:
+
+- `services.udiskie.automount = false` — при входе ничего не монтируется само;
+- правило polkit для группы `wheel` — ручное монтирование через udisks2/Thunar и разблокировка
+  LUKS-разделов идут без пароля.
+
+Посмотреть, кто именно просил пароль:
+
+```bash
+journalctl -b --no-pager -g 'polkit|Authentication' | tail -40
+```
+
 ## niri в виртуальной машине
 
 niri требует GPU с EGL/GBM и **не умеет software-рендеринг**. В QEMU нужен virtio-gpu с 3D:

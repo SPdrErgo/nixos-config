@@ -78,6 +78,20 @@
   # Niri (Wayland session, started by the `ly` display manager).
   programs.niri.enable = true;
 
+  # Let members of `wheel` mount/unlock disks via udisks2 without a polkit
+  # password prompt (udiskie/Thunar). Narrower than blanket allow-all.
+  security.polkit.extraConfig = ''
+    polkit.addRule(function(action, subject) {
+      if (subject.isInGroup("wheel") &&
+          (action.id == "org.freedesktop.udisks2.filesystem-mount" ||
+           action.id == "org.freedesktop.udisks2.filesystem-mount-system" ||
+           action.id == "org.freedesktop.udisks2.encrypted-unlock" ||
+           action.id == "org.freedesktop.udisks2.encrypted-unlock-system")) {
+        return polkit.Result.YES;
+      }
+    });
+  '';
+
   # --- Audio --------------------------------------------------------------
   services.pulseaudio.enable = false;
   security.rtkit.enable = true;

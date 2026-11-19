@@ -273,10 +273,12 @@ in
     defaultApplications."inode/directory" = "thunar.desktop";
   };
 
-  # Automount removable media + safe unmount (`udiskie-umount -a`).
+  # Automount is off on purpose: on login udiskie tries to mount every block
+  # device (including internal NTFS/LUKS partitions), and udisks2 asks for a
+  # password via polkit. Mount from the tray or with `udiskie-mount -a`.
   services.udiskie = {
     enable = true;
-    automount = true;
+    automount = false;
     notify = true;
     tray = "auto";
   };
