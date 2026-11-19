@@ -157,9 +157,3 @@ niri требует GPU с EGL/GBM и **не умеет software-рендери�
 
 Проверка в госте: должен существовать `/dev/dri/renderD128`.
 
-## Замечания
-
-- Пароль и приватные ключи в репозиторий не попадают.
-- `hardware-configuration.nix` содержит UUID диска исходной VM.
-- KDE и niri установлены одновременно; сессия выбирается в SDDM.
-- Если udiskie конфликтует с автомонтированием Plasma — поставьте `services.udiskie.automount = false` и монтируйте через `udiskie-mount -a`.
