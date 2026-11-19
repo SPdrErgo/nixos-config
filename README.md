@@ -11,8 +11,8 @@ Catppuccin/starship, yazi/Thunar, udiskie. Десктопных окружени
 | `flake.nix` | inputs: nixpkgs 26.05, home-manager, niri-flake, noctalia (cachix), zen-browser; установщики `install` / `install-iso` |
 | `user.nix` | имя пользователя по умолчанию (установщик пишет `user-local.nix`, который этот файл перекрывает) |
 | `configuration.nix` | система: boot, сеть, niri, pipewire, кеши, GC (SSH выключен) |
-| `home.nix` | пользователь: zsh/starship/zoxide, niri, noctalia, fuzzel, терминалы, Zen, Zed, yazi/Thunar, udiskie, `nh` |
-| обои | не хранятся в репозитории: тянутся с GitHub (`D3Ext/aesthetic-wallpapers`) через `pkgs.fetchurl` и ставятся в `~/.local/share/wallpapers` |
+| `home.nix` | пользователь: zsh/starship/zoxide, niri, noctalia (бар, лаунчер, обои), терминалы, Zen, Zed, yazi/Thunar, udiskie, `nh` |
+| обои | не хранятся в репозитории: их показывает noctalia, папка по умолчанию `~/Pictures` |
 | `hardware-configuration.nix` | **не хранится в репозитории** — генерируется на каждой машине (`nixos-generate-config`) |
 | `user-local.nix` | **не хранится в репозитории** — машино-специфичное имя пользователя |
 | `themes.nix` | палитры тем (catppuccin mocha/latte, everforest, gruvbox, ascii) |
@@ -138,11 +138,29 @@ services.openssh = {
 | Клавиши | Действие |
 |---|---|
 | `Super+Return` | терминал (`alacritty`) |
-| `Super+D` | меню приложений (`fuzzel`) |
+| `Super+D` | поиск/меню приложений от noctalia |
 | `Super+E` | файловый менеджер (`yazi`) |
-| `Super+Shift+W` | случайные обои из `~/.local/share/wallpapers` |
+| `Super+Shift+B` | панель выбора обоев noctalia |
+| `Super+Shift+W` | случайные обои (`noctalia msg wallpaper-random`) |
 | `Super+X` | панель noctalia |
 | `Ctrl+Alt+L` | заблокировать (`swaylock`) |
+
+## Обои (noctalia)
+
+Обоями полностью управляет noctalia: свой рендерер, переходы (fade/wipe/pixel/crt…),
+панель выбора и IPC. `swaybg` больше не используется.
+
+- папка по умолчанию — `~/Pictures` (в конфиге `wallpaper.directory = ""` = XDG Pictures);
+- выбор обоев: `Super+Shift+B` (панель) или `noctalia msg panel-toggle wallpaper`;
+- случайные: `Super+Shift+W` (`noctalia msg wallpaper-random`);
+- вперёд/назад: `noctalia msg wallpaper-next`, `noctalia msg wallpaper-previous`;
+- поставить конкретный файл: `noctalia msg wallpaper-set ~/Pictures/foo.png`.
+
+Свою папку можно указать явно:
+
+```nix
+programs.noctalia.settings.wallpaper.directory = "/home/<user>/Wallpapers";
+```
 
 ## Экран входа (ly)
 
@@ -234,21 +252,34 @@ bash scripts/cached-build.sh
 
 ## Темы
 
-Все цвета лежат в `themes.nix` и применяются к alacritty, fuzzel, рамкам niri и экрану входа
-`ly`. Выбранная тема хранится в `theme-local.nix` (gitignore), по умолчанию — `catppuccin-mocha`.
+Все цвета лежат в `themes.nix`. Из них собираются:
+
+- alacritty (фон/ANSI/курсор/выделение);
+- рамки niri;
+- палитра **noctalia** (бар, панели, лаунчер) — генерируется JSON
+  `~/.config/noctalia/palettes/Config.json` через `customPalettes.Config`;
+- экран входа `ly` (цвета + анимация).
+
+Выбранная тема хранится в `theme-local.nix` (gitignore), по умолчанию — `catppuccin-mocha`.
 
 ```bash
 theme                  # текущая тема + список доступных
 theme everforest       # переключить и пересобрать
-theme ascii            # зелёный «фосфорный» терминал
+theme ascii            # чёрно-зелёный «фосфор» во всей системе
 ```
 
 Доступно: `catppuccin-mocha`, `catppuccin-latte`, `everforest`, `gruvbox`, `ascii`.
 
 Тема `ascii` — это чёрный фон и зелёный текст в духе старого терминала: в `ly` вместо
-Game of Life включается ASCII-дождь (`animation = "matrix"`), а `cmatrix` есть в системе
-(алиас `matrix`). Свою тему можно добавить, скопировав блок в `themes.nix` — главное сохранить
-все ключи (bg/fg/selection/…/accent/cursor/lyAnimation).
+Game of Life включается ASCII-дождь (`animation = "matrix"`), `noctalia` перекрашивается в
+чёрно-зелёную палитру, а `cmatrix` есть в системе (алиас `matrix`). Свою тему можно добавить,
+скопировав блок в `themes.nix` — главное сохранить все ключи
+(bg/fg/selection/…/accent/cursor/lyAnimation).
+
+> `noctalia` при изменениях через GUI пишет их в `~/.config/noctalia/settings.toml`, а он
+> загружается последним и перекрывает наш `config.toml`. Если после `theme <name>` цвета не
+> поменялись — убери `theme`/`custom_palette` из `settings.toml` (или выбери палитру `Config`
+> в настройках noctalia).
 
 > Starship использует фиксированный пресет Catppuccin Powerline, он от темы не зависит.
 

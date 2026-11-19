@@ -5,6 +5,7 @@
   pkgs,
   username,
   theme,
+  themeName,
   ...
 }:
 
@@ -27,21 +28,58 @@ let
     key: options: command:
     bindWith key options "spawn-sh" command;
 
-  # Wallpapers are fetched from GitHub at build time and installed into
-  # ~/.local/share/wallpapers (pinned by hash, so builds are reproducible).
-  # Source: https://github.com/D3Ext/aesthetic-wallpapers
-  wallpaperBase = "https://raw.githubusercontent.com/D3Ext/aesthetic-wallpapers/main/images";
-  fetchWallpaper = file: hash: pkgs.fetchurl {
-    url = "${wallpaperBase}/${file}";
-    inherit hash;
+  # Noctalia palette (v2 JSON) generated from the active theme, so the shell,
+  # bar, panels and launcher follow `theme <name>` too.
+  noctaliaPalette = {
+    version = 2;
+    base = "Config";
+    dark = {
+      primary = "#${theme.accent}";
+      on_primary = "#${theme.bg}";
+      secondary = "#${theme.cyan}";
+      on_secondary = "#${theme.bg}";
+      tertiary = "#${theme.magenta}";
+      on_tertiary = "#${theme.bg}";
+      error = "#${theme.red}";
+      on_error = "#${theme.bg}";
+      surface = "#${theme.bg}";
+      on_surface = "#${theme.fg}";
+      on_surface_variant = "#${theme.white}";
+      surface_container = "#${theme.selection}";
+      outline_variant = "#${theme.brightBlack}";
+      shadow = "#${theme.bg}";
+      hover = "#${theme.selection}";
+      on_hover = "#${theme.fg}";
+      terminal = {
+        background = "#${theme.bg}";
+        foreground = "#${theme.fg}";
+        cursor = "#${theme.cursor}";
+        cursor_text = "#${theme.bg}";
+        selection_bg = "#${theme.selection}";
+        selection_fg = "#${theme.fg}";
+        normal = {
+          black = "#${theme.black}";
+          red = "#${theme.red}";
+          green = "#${theme.green}";
+          yellow = "#${theme.yellow}";
+          blue = "#${theme.blue}";
+          magenta = "#${theme.magenta}";
+          cyan = "#${theme.cyan}";
+          white = "#${theme.white}";
+        };
+        bright = {
+          black = "#${theme.brightBlack}";
+          red = "#${theme.brightRed}";
+          green = "#${theme.brightGreen}";
+          yellow = "#${theme.brightYellow}";
+          blue = "#${theme.brightBlue}";
+          magenta = "#${theme.brightMagenta}";
+          cyan = "#${theme.brightCyan}";
+          white = "#${theme.brightWhite}";
+        };
+      };
+    };
   };
-  wallpapers = {
-    "everforest-robin.png" = fetchWallpaper "everforest_robin.png" "sha256-cMjUEMDpGuwlAftlPWM75qcM9DuVsxdSbH7PC5enXDw=";
-    "everforest-one-piece.png" = fetchWallpaper "everforest_one_piece.png" "sha256-xhUFWVWUBIj4LElsI8e35u8kPrFSW+LkQB0Ib08aEXc=";
-    "plant.png" = fetchWallpaper "plant.png" "sha256-CCuJTnX+jbN4KpzQ9z+jRv5sFRKpV+0XD2Pmgnp7fk4=";
-    "forest-bridge.jpg" = fetchWallpaper "forest-bridge.jpg" "sha256-JfM9ZbT5SSO6NgIA5crhYpv8MFcK17RjCI9brbm7Hzo=";
-  };
-  defaultWallpaper = wallpapers."everforest-robin.png";
 in
 
 {
@@ -50,28 +88,6 @@ in
   home.stateVersion = "26.05";
 
   programs.home-manager.enable = true;
-
-  # Wallpapers, fetched from GitHub at build time (see the `wallpapers` binding).
-  # Mod+Shift+W runs the random switcher from ~/.local/bin.
-  home.file =
-    (lib.mapAttrs' (
-      name: src: lib.nameValuePair ".local/share/wallpapers/${name}" { source = src; }
-    ) wallpapers)
-    // {
-      ".local/bin/wallpaper-random" = {
-        executable = true;
-        text = ''
-          #!/usr/bin/env bash
-          set -euo pipefail
-          dir="$HOME/.local/share/wallpapers"
-          [ -d "$dir" ] || exit 1
-          file=$(find -L "$dir" -type f | shuf -n 1)
-          pkill -x swaybg 2>/dev/null || true
-          sleep 0.2
-          exec swaybg -m fill -i "$file"
-        '';
-      };
-    };
 
   # --- Git ----------------------------------------------------------------
   programs.git = {
@@ -234,38 +250,7 @@ in
     };
   };
 
-  # Application launcher (Mod+D).
-  programs.fuzzel = {
-    enable = true;
-    settings = {
-      main = {
-        font = "JetBrainsMono Nerd Font Mono:size=11";
-        terminal = "alacritty";
-        layer = "overlay";
-        width = 40;
-        lines = 12;
-        prompt = "❯ ";
-        "icons-enabled" = "yes";
-      };
-      border = {
-        width = 2;
-        radius = 8;
-      };
-      colors = {
-        background = "${theme.bg}ee";
-        text = "${theme.fg}d9";
-        prompt = "${theme.accent}ff";
-        placeholder = "${theme.white}ff";
-        input = "${theme.fg}ee";
-        match = "${theme.accent}ff";
-        selection = "${theme.selection}ff";
-        "selection-text" = "${theme.fg}ff";
-        "selection-match" = "${theme.accent}ff";
-        counter = "${theme.white}ff";
-        border = "${theme.accent}ff";
-      };
-    };
-  };
+  # Application launcher / wallpaper picker live in noctalia (see the binds).
 
   # Thunar as the default GUI file manager.
   xdg.mimeApps = {
@@ -286,6 +271,11 @@ in
   # --- Noctalia (Wayland shell / bar) -------------------------------------
   programs.noctalia = {
     enable = true;
+
+    # `theme <name>` also recolours the shell: the palette below is generated
+    # from themes.nix and installed as ~/.config/noctalia/palettes/Config.json.
+    customPalettes.Config = noctaliaPalette;
+
     settings = {
       accessibility.ui_scale = 1.0;
       shell = {
@@ -293,9 +283,28 @@ in
         time_format = "{:%H:%M}";
         date_format = "%a, %b %d";
         telemetry_enabled = false;
-        setup_wizard_enabled = false;
         clipboard_enabled = true;
         animation.enabled = true;
+      };
+      theme = {
+        mode = if themeName == "catppuccin-latte" then "light" else "dark";
+        source = "custom";
+        custom_palette = "Config";
+      };
+      # Wallpaper is owned by noctalia (picker + transitions + IPC).
+      # directory = "" means the XDG Pictures folder (~/Pictures).
+      wallpaper = {
+        enabled = true;
+        fill_mode = "crop";
+        directory = "";
+        transition = [
+          "fade"
+          "wipe"
+          "pixel"
+          "crt"
+        ];
+        transition_duration = 1200;
+        transition_on_startup = true;
       };
     };
   };
@@ -309,17 +318,6 @@ in
 
       spawn-at-startup = [
         { argv = [ "noctalia" ]; }
-        # Wallpaper (niri has no background of its own).
-        # Mod+Shift+W switches to a random one from ~/.local/share/wallpapers.
-        {
-          argv = [
-            "swaybg"
-            "-m"
-            "fill"
-            "-i"
-            "${defaultWallpaper}"
-          ];
-        }
       ];
 
       xwayland-satellite = {
@@ -379,8 +377,10 @@ in
       binds =
         # Apps
         (spawn "Mod+Return" [ "alacritty" ])
-        // (spawn "Mod+D" [ "fuzzel" ])
-        // (spawn "Mod+Shift+W" [ "/home/${username}/.local/bin/wallpaper-random" ])
+        # Application search / launcher is provided by noctalia.
+        // (spawn "Mod+D" [ "noctalia" "msg" "panel-toggle" "launcher" ])
+        // (spawn "Mod+Shift+B" [ "noctalia" "msg" "panel-toggle" "wallpaper" ])
+        // (spawn "Mod+Shift+W" [ "noctalia" "msg" "wallpaper-random" ])
         // (spawn "Mod+E" [
           "alacritty"
           "-e"
@@ -575,8 +575,6 @@ in
     playerctl
     wl-clipboard
     swaylock
-    swaybg
-    procps # pkill for the wallpaper switcher
     xwayland-satellite
 
     # GUI file manager (Thunar + thumbnails + removable media)
