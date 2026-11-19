@@ -40,6 +40,15 @@
         else
           (import ./user.nix).username;
 
+      # Colour theme. `theme <name>` writes ./theme-local.nix (gitignored).
+      themeName =
+        if builtins.pathExists ./theme-local.nix then
+          (import ./theme-local.nix).name
+        else
+          "catppuccin-mocha";
+      themes = import ./themes.nix;
+      theme = themes.${themeName} or (throw "Unknown theme '${themeName}' (see themes.nix)");
+
       repoUrl = "https://github.com/SPdrErgo/nixos-config";
 
       # cache.nixos.org has to stay in this list: `--option trusted-public-keys`
@@ -428,7 +437,7 @@
         '';
 
       nixosConfigurations.nixos = nixpkgs.lib.nixosSystem {
-        specialArgs = { inherit inputs username; };
+        specialArgs = { inherit inputs username theme themeName; };
 
         modules = [
           ./configuration.nix
@@ -438,7 +447,7 @@
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
             home-manager.backupFileExtension = "hm-backup";
-            home-manager.extraSpecialArgs = { inherit username; };
+            home-manager.extraSpecialArgs = { inherit username theme themeName; };
             home-manager.users.${username} = {
               imports = [
                 inputs.niri.homeModules.config

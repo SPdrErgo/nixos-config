@@ -8,6 +8,7 @@
   pkgs,
   inputs,
   username,
+  theme,
   ...
 }:
 
@@ -45,14 +46,17 @@
   services.xserver.enable = true;
   services.displayManager.ly.enable = true;
 
-  # Login screen: Conway's Game of Life on a dark green background.
+  # Login screen: colours come from themes.nix (see the `theme` argument).
+  # Animation is "gameoflife" for most themes and "matrix" for the ascii one.
   # Colors are 0xSSRRGGBB (see `res/config.ini` in the ly sources).
   services.displayManager.ly.settings = {
-    animation = "gameoflife";
-    bg = "0x000B3E1C";
-    fg = "0x00EAFFEA";
-    border_fg = "0x0040FF80";
-    gameoflife_fg = "0x006BFF9A";
+    animation = theme.lyAnimation;
+    bg = "0x00${theme.bg}";
+    fg = "0x00${theme.fg}";
+    border_fg = "0x00${theme.accent}";
+    gameoflife_fg = "0x00${theme.accent}";
+    cmatrix_fg = "0x00${theme.accent}";
+    cmatrix_head_col = "0x01${theme.brightWhite}";
     gameoflife_frame_delay = 6;
     gameoflife_initial_density = "0.4";
     gameoflife_entropy_interval = 10;

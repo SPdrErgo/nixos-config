@@ -15,6 +15,8 @@ Catppuccin/starship, yazi/Thunar, udiskie. Десктопных окружени
 | обои | не хранятся в репозитории: тянутся с GitHub (`D3Ext/aesthetic-wallpapers`) через `pkgs.fetchurl` и ставятся в `~/.local/share/wallpapers` |
 | `hardware-configuration.nix` | **не хранится в репозитории** — генерируется на каждой машине (`nixos-generate-config`) |
 | `user-local.nix` | **не хранится в репозитории** — машино-специфичное имя пользователя |
+| `themes.nix` | палитры тем (catppuccin mocha/latte, everforest, gruvbox, ascii) |
+| `theme-local.nix` | **не хранится в репозитории** — выбранная тема (пишется `theme <name>`) |
 | `starship-catppuccin-powerline.toml` | пресет Starship |
 | `scripts/install`-скрипты | `rebuild.sh` (пересборка), `nix-caches.sh` (выбор живого кеша), `adopt-git.sh` (перевести уже установленную систему на git), `cached-build.sh` |
 
@@ -167,6 +169,7 @@ sudo /etc/nixos/scripts/rebuild.sh
 rebuild   # sudo /etc/nixos/scripts/rebuild.sh
 update    # git pull --ff-only && rebuild
 upgrade   # nix flake update --flake /etc/nixos && rebuild
+theme     # sudo /etc/nixos/scripts/theme.sh
 clean     # sudo nh clean all
 ```
 
@@ -228,6 +231,26 @@ bash scripts/cached-build.sh
 
 Если GitHub недоступен, установщик всё равно поставит систему из локального flake-снапшота и
 предупредит; позже достаточно выполнить `git -C /etc/nixos fetch origin && git -C /etc/nixos reset --hard origin/main`.
+
+## Темы
+
+Все цвета лежат в `themes.nix` и применяются к alacritty, fuzzel, рамкам niri и экрану входа
+`ly`. Выбранная тема хранится в `theme-local.nix` (gitignore), по умолчанию — `catppuccin-mocha`.
+
+```bash
+theme                  # текущая тема + список доступных
+theme everforest       # переключить и пересобрать
+theme ascii            # зелёный «фосфорный» терминал
+```
+
+Доступно: `catppuccin-mocha`, `catppuccin-latte`, `everforest`, `gruvbox`, `ascii`.
+
+Тема `ascii` — это чёрный фон и зелёный текст в духе старого терминала: в `ly` вместо
+Game of Life включается ASCII-дождь (`animation = "matrix"`), а `cmatrix` есть в системе
+(алиас `matrix`). Свою тему можно добавить, скопировав блок в `themes.nix` — главное сохранить
+все ключи (bg/fg/selection/…/accent/cursor/lyAnimation).
+
+> Starship использует фиксированный пресет Catppuccin Powerline, он от темы не зависит.
 
 ## niri в виртуальной машине
 

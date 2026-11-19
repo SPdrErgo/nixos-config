@@ -4,6 +4,7 @@
   lib,
   pkgs,
   username,
+  theme,
   ...
 }:
 
@@ -88,6 +89,40 @@ in
   programs.alacritty = {
     enable = true;
     settings = {
+      colors = {
+        primary = {
+          background = "#${theme.bg}";
+          foreground = "#${theme.fg}";
+        };
+        cursor = {
+          text = "#${theme.bg}";
+          cursor = "#${theme.accent}";
+        };
+        normal = {
+          black = "#${theme.black}";
+          red = "#${theme.red}";
+          green = "#${theme.green}";
+          yellow = "#${theme.yellow}";
+          blue = "#${theme.blue}";
+          magenta = "#${theme.magenta}";
+          cyan = "#${theme.cyan}";
+          white = "#${theme.white}";
+        };
+        bright = {
+          black = "#${theme.brightBlack}";
+          red = "#${theme.brightRed}";
+          green = "#${theme.brightGreen}";
+          yellow = "#${theme.brightYellow}";
+          blue = "#${theme.brightBlue}";
+          magenta = "#${theme.brightMagenta}";
+          cyan = "#${theme.brightCyan}";
+          white = "#${theme.brightWhite}";
+        };
+        selection = {
+          background = "#${theme.selection}";
+          text = "#${theme.fg}";
+        };
+      };
       font = {
         normal = {
           family = "JetBrainsMono Nerd Font Mono";
@@ -217,17 +252,17 @@ in
         radius = 8;
       };
       colors = {
-        background = "0b3e1cee";
-        text = "eaffead9";
-        prompt = "6bff9aff";
-        placeholder = "8fbfa0ff";
-        input = "eaffeaee";
-        match = "6bff9aff";
-        selection = "1d6b3aff";
-        "selection-text" = "ffffffee";
-        "selection-match" = "b6ffcaff";
-        counter = "8fbfa0ff";
-        border = "6bff9aff";
+        background = "${theme.bg}ee";
+        text = "${theme.fg}d9";
+        prompt = "${theme.accent}ff";
+        placeholder = "${theme.white}ff";
+        input = "${theme.fg}ee";
+        match = "${theme.accent}ff";
+        selection = "${theme.selection}ff";
+        "selection-text" = "${theme.fg}ff";
+        "selection-match" = "${theme.accent}ff";
+        counter = "${theme.white}ff";
+        border = "${theme.accent}ff";
       };
     };
   };
@@ -324,9 +359,9 @@ in
         focus-ring = {
           enable = true;
           width = 4;
-          active.color = "#eab676";
-          inactive.color = "#282828";
-          urgent.color = "#9b0000";
+          active.color = "#${theme.accent}";
+          inactive.color = "#${theme.selection}";
+          urgent.color = "#${theme.red}";
         };
 
         border.enable = false;
@@ -500,6 +535,8 @@ in
       update = "git -C /etc/nixos pull --ff-only && sudo /etc/nixos/scripts/rebuild.sh";
       upgrade = "nix flake update --flake /etc/nixos && sudo /etc/nixos/scripts/rebuild.sh";
       clean = "sudo nh clean all";
+      theme = "sudo /etc/nixos/scripts/theme.sh";
+      matrix = "cmatrix";
     };
   };
 
@@ -526,6 +563,7 @@ in
 
   home.packages = with pkgs; [
     fastfetch
+    cmatrix
     wget
     # Nerd Font с powerline-глифами (  ) — выберите его в терминале
     nerd-fonts.jetbrains-mono

@@ -5,3 +5,4 @@ result-*
 build*.log
 hardware-configuration.nix
 user-local.nix
+theme-local.nix
