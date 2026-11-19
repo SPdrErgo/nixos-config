@@ -203,6 +203,7 @@
           --option extra-substituters "https://mirror.yandex.ru/nixos https://niri.cachix.org https://noctalia.cachix.org" \
           --option extra-trusted-public-keys "niri.cachix.org-1:Wv0OmO7PsuocRKzfDoJ3mulSl7Z6oezYhGhR+3W2964= noctalia.cachix.org-1:pCOR47nnMEo5thcxNDtzWpOxNFQsBRglJzxWPp3dkU4="
 
+        /run/current-system/sw/bin/nixos-enter --root /mnt -c "ln -sfn /etc/nixos /home/$USER_NAME/nixos-config; chown -h $USER_NAME:users /home/$USER_NAME/nixos-config" || true
         /run/current-system/sw/bin/nixos-enter --root /mnt -c "passwd $USER_NAME" || true
 
         umount -R /mnt

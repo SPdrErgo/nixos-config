@@ -109,8 +109,10 @@ services.openssh = {
 
 ## После установки
 
+Установщики кладут конфиг в `/etc/nixos` и создают симлинк `~/nixos-config` на него. Для ручной установки используйте `/etc/nixos` напрямую:
+
 ```bash
-cd ~/nixos-config
+cd ~/nixos-config   # или /etc/nixos
 sudo nixos-rebuild switch --flake .#nixos
 ```
 
