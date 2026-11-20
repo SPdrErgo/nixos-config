@@ -504,6 +504,7 @@ in
 
     # Nix Helper
     nh
+    obsidian
     telegram-desktop
   ];
 }
